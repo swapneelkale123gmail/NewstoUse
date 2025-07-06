@@ -1,0 +1,82 @@
+!pip install newsapi-python spacy textblob yfinance
+!python -m textblob.download_corpora
+!python -m spacy download en_core_web_sm
+
+from newsapi import NewsApiClient
+import spacy
+from textblob import TextBlob
+import yfinance as yf
+
+# Load English model for NER
+nlp = spacy.load("en_core_web_sm")
+
+# === CONFIGURATION SECTION ===
+
+API_KEY = 'dd605ff3b87d4b9ba1eb27bf35ba0d20'  # Replace with your NewsAPI key
+
+# Customizable parameters
+market = 'NYSE'  # Options: NYSE, BSE, NSE etc
+sector = 'banking'  # Sector filter
+keywords = ['finance', 'banking', 'interest rate', 'loan', 'regulation']  # Keywords to include
+
+# Initialize NewsAPI
+newsapi = NewsApiClient(api_key=API_KEY)
+
+# Sample stock mapping (extend this for better matching)
+stock_watchlist = {
+    'AAPL': 'Apple',
+    'JPM': 'JPMorgan Chase',
+    'TSLA': 'Tesla',
+    'HDFCBANK.BO': 'HDFC Bank',
+    'RELIANCE.BO': 'Reliance Industries'
+}
+
+def fetch_news(keywords, language='en', page_size=20):
+    query = " OR ".join(keywords)
+    news = newsapi.get_everything(q=query,
+                                   language=language,
+                                   sort_by='publishedAt',
+                                   page_size=page_size)
+    return news['articles']
+
+def extract_entities(text):
+    doc = nlp(text)
+    return [ent.text for ent in doc.ents if ent.label_ in ['ORG', 'PERSON']]
+
+def analyze_sentiment(text):
+    blob = TextBlob(text)
+    polarity = blob.sentiment.polarity
+    return "Positive" if polarity > 0 else "Negative" if polarity < 0 else "Neutral"
+
+def match_stock(entities, stock_watchlist):
+    matched = []
+    for symbol, name in stock_watchlist.items():
+        for entity in entities:
+            if name.lower() in entity.lower():
+                matched.append((symbol, name))
+    return matched
+
+def main():
+    print(f"\nFetching latest news for market: {market}, sector: {sector}\n")
+    articles = fetch_news(keywords)
+
+    for article in articles:
+        title = article['title']
+        desc = article.get('description') or ''
+        content = f"{title}. {desc}"
+        
+        entities = extract_entities(content)
+        matched_stocks = match_stock(entities, stock_watchlist)
+        sentiment = analyze_sentiment(content)
+
+        if matched_stocks:
+            for symbol, name in matched_stocks:
+                print(f"Stock: {name} ({symbol})")
+                print(f"Title: {title}")
+                print(f"Sentiment: {sentiment}")
+                print(f"URL: {article['url']}\n")
+        else:
+            print(f"No tracked stocks found in article: {title[:60]}...\n")
+
+if __name__ == "__main__":
+    main()
