@@ -19,7 +19,11 @@ stock_watchlist = {
     'HON': 'Honeywell',
     'MMM': '3M',
     'BA': 'Boeing',
-    'LMT': 'Lockheed Martin'
+    'LMT': 'Lockheed Martin',
+    'RTX': 'Raytheon',
+    'DE': 'Deere',
+    'NOC': 'Northrop Grumman',
+    'UNP': 'Union Pacific'    
 }
 
 # === INIT NEWS API ===
@@ -40,8 +44,11 @@ def extract_entities(text):
 def match_stock(entities):
     matched = []
     for symbol, company in stock_watchlist.items():
+        company_tokens = company.lower().split()
         for entity in entities:
-            if company.lower() in entity.lower() or entity.lower() in company.lower():
+            entity_clean = entity.lower()
+            # Match only if ALL tokens from company name are in entity
+            if all(token in entity_clean for token in company_tokens):
                 matched.append((symbol, company))
     return matched
 
@@ -72,6 +79,7 @@ def main():
         url = article.get('url', '')
 
         entities = extract_entities(content)
+        print("📌 Entities found:", entities)
         matched_stocks = match_stock(entities)
         sentiment = analyze_sentiment(content)
 
