@@ -1,30 +1,32 @@
+
 import streamlit as st
 import pandas as pd
 from newsapi import NewsApiClient
 from textblob import TextBlob
 import spacy
-from fuzzywuzzy import fuzz
+import time
 
 # Load SpaCy English model
 nlp = spacy.load("en_core_web_sm")
 
+# Title
 st.set_page_config(page_title="Stock News Analyzer", layout="centered")
 st.title("📈 Stock News Sentiment Analyzer (CSV-Driven)")
 
-# Input: NewsAPI Key
+# API Key input
 api_key = st.text_input("🔑 Enter your NewsAPI Key", type="password")
 if not api_key:
     st.stop()
 
 newsapi = NewsApiClient(api_key=api_key)
 
-# Upload CSV file
+# Upload CSV
 st.markdown("📄 **Upload CSV with columns: 'Symbol', 'Company Name'**")
-uploaded_file = st.file_uploader("Upload your stock watchlist CSV", type="csv")
+uploaded_file = st.file_uploader("Drag and drop file here", type="csv")
 if uploaded_file is None:
     st.stop()
 
-# Load stock list
+# Load CSV and create stock watchlist
 try:
     stock_df = pd.read_csv(uploaded_file)
     st.write("✅ CSV Loaded:", stock_df.head())
@@ -33,22 +35,25 @@ except Exception as e:
     st.error(f"❌ Error reading CSV: {e}")
     st.stop()
 
-# Keyword input
-keywords = st.text_input("📝 Enter news keywords (comma-separated)", value="stocks, finance, economy")
+# Keywords input
+keywords = st.text_input("📝 Enter Keywords to search (comma-separated)", value="stocks, finance, economy, earnings")
 
-# Parameters
+# Pages slider
 pages = st.slider("📄 Number of pages to fetch", min_value=1, max_value=10, value=2)
-threshold = st.slider("🎯 Matching sensitivity (lower = looser)", min_value=60, max_value=100, value=80)
 
-# Utilities
+# Sentiment Analysis
 def analyze_sentiment(text):
     blob = TextBlob(text)
     polarity = blob.sentiment.polarity
     return "Positive" if polarity > 0 else "Negative" if polarity < 0 else "Neutral"
 
+# Entity extraction
 def extract_entities(text):
     doc = nlp(text)
     return [ent.text for ent in doc.ents if ent.label_ in ["ORG", "PERSON"]]
+
+# Match stock
+from fuzzywuzzy import fuzz
 
 def match_stock(entities, stock_watchlist, threshold=90):
     matches = []
@@ -61,6 +66,7 @@ def match_stock(entities, stock_watchlist, threshold=90):
                 break
     return matches
 
+# Fetch news
 def fetch_news(query_keywords, pages=5):
     query = " OR ".join(query_keywords)
     all_articles = []
@@ -82,9 +88,9 @@ def fetch_news(query_keywords, pages=5):
             break
     return all_articles
 
-# Run Analysis
+# Run analysis
 if st.button("🚀 Run News Analysis"):
-    st.write("🕵️ Fetching news...")
+    st.write("🕵️ Starting analysis...")
     articles = fetch_news([kw.strip() for kw in keywords.split(",")], pages=pages)
     st.write(f"✅ Fetched {len(articles)} articles")
 
@@ -94,11 +100,8 @@ if st.button("🚀 Run News Analysis"):
         desc = article.get('description') or ''
         url = article.get('url')
         content = f"{title}. {desc}"
-
         entities = extract_entities(content)
-        st.write("🧠 Entities:", entities)
-
-        matched_stocks = match_stock(entities, stock_watchlist, threshold=threshold)
+        matched_stocks = match_stock(entities, stock_watchlist, threshold=90)
         sentiment = analyze_sentiment(content)
 
         if matched_stocks:
@@ -117,4 +120,4 @@ if st.button("🚀 Run News Analysis"):
         csv = df_results.to_csv(index=False).encode('utf-8')
         st.download_button("📥 Download Results as CSV", data=csv, file_name="news_results.csv", mime="text/csv")
     else:
-        st.warning("⚠️ No matching stocks found. Try lowering the threshold or checking your company names.")
+        st.info("No matching stocks found in the fetched news.")
