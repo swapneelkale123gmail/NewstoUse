@@ -2,6 +2,8 @@ from newsapi import NewsApiClient
 import spacy
 from textblob import TextBlob
 import csv
+import streamlit as st
+
 
 # Load SpaCy model
 nlp = spacy.load("en_core_web_sm")
@@ -9,8 +11,7 @@ nlp = spacy.load("en_core_web_sm")
 # === CONFIGURATION ===
 API_KEY = 'dd605ff3b87d4b9ba1eb27bf35ba0d20'  # 🔁 Replace with your NewsAPI Key
 market = 'NYSE'
-sector = 'industrials'
-keywords = ['manufacturing', 'construction', 'infrastructure', 'GE', 'Honeywell', 'defense']
+keywords = ['manufacturing', 'construction', 'infrastructure', 'GE', 'Honeywell', 'Defense','Finance','Auto']
 
 # Example stock watchlist for Industrials (extend as needed)
 stock_watchlist = {
@@ -23,7 +24,31 @@ stock_watchlist = {
     'RTX': 'Raytheon',
     'DE': 'Deere',
     'NOC': 'Northrop Grumman',
-    'UNP': 'Union Pacific'    
+    'UNP': 'Union Pacific',
+    'LIN': 'Linde plc Ordinary Shares',
+    'RTX': 'RTX Corporation Common Stock',
+    'CAT': 'Caterpillar Inc. Common Stock',
+    'BA': 'Boeing Company (The) Common Stock',
+    'TMO': 'Thermo Fisher Scientific Inc Common Stock',
+    'HON': 'Honeywell International Inc. Common Stock',
+    'DHR': 'Danaher Corporation Common Stock',
+    'UNP': 'Union Pacific Corporation Common Stock',
+    'DE': 'Deere & Company Common Stock',
+    'LMT': 'Lockheed Martin Corporation Common Stock',
+    'TT': 'Trane Technologies plc',
+    'PH': 'Parker-Hannifin Corporation Common Stock',
+    'UPS': 'United Parcel Service Inc. Common Stock',
+    'TDG': 'Transdigm Group Incorporated Common Stock',
+    'GD': 'General Dynamics Corporation Common Stock',
+    'ITW': 'Illinois Tool Works Inc. Common Stock',
+    'CP': 'Canadian Pacific Kansas City Limited Common Shares',
+    'HWM': 'Howmet Aerospace Inc. Common Stock',
+    'NOC': 'Northrop Grumman Corporation Common Stock',
+    'JCI': 'Johnson Controls International plc Ordinary Share',
+    'CNI': 'Canadian National Railway Company Common Stock',
+    'APD': 'Air Products and Chemicals Inc. Common Stock',
+    'CARR': 'Carrier Global Corporation Common Stock ',
+    'CRH': 'CRH PLC Ordinary Shares'
 }
 
 # === INIT NEWS API ===
@@ -44,14 +69,21 @@ def extract_entities(text):
 def match_stock(entities):
     matched = []
     for symbol, company in stock_watchlist.items():
-        company_tokens = company.lower().split()
+        company_lower = company.lower()
         for entity in entities:
-            entity_clean = entity.lower()
-            # Match only if ALL tokens from company name are in entity
-            if all(token in entity_clean for token in company_tokens):
+            entity_lower = entity.lower()
+            if company_lower in entity_lower or entity_lower in company_lower:
                 matched.append((symbol, company))
     return matched
 
+def fallback_match(content):
+    matched = []
+    content_lower = content.lower()
+    for symbol, company in stock_watchlist.items():
+        if company.lower() in content_lower:
+            matched.append((symbol, company))
+    return matched
+    
 def analyze_sentiment(text):
     blob = TextBlob(text)
     polarity = blob.sentiment.polarity
@@ -79,8 +111,12 @@ def main():
         url = article.get('url', '')
 
         entities = extract_entities(content)
+        st.write("📌 Detected Entities:", entities)
         print("📌 Entities found:", entities)
+        entities = extract_entities(content)
+        st.write("📌 Entities detected:", entities)
         matched_stocks = match_stock(entities)
+
         sentiment = analyze_sentiment(content)
 
         if matched_stocks:
