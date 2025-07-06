@@ -1,0 +1,117 @@
+from newsapi import NewsApiClient
+import spacy
+from textblob import TextBlob
+import csv
+
+# Load SpaCy model
+nlp = spacy.load("en_core_web_sm")
+
+# === CONFIGURATION ===
+API_KEY = 'dd605ff3b87d4b9ba1eb27bf35ba0d20'  # 🔁 Replace with your NewsAPI Key
+market = 'NYSE'
+sector = 'industrials'
+keywords = ['manufacturing', 'construction', 'infrastructure', 'GE', 'Honeywell', 'defense']
+
+# Example stock watchlist for Industrials (extend as needed)
+stock_watchlist = {
+    'GE': 'General Electric',
+    'CAT': 'Caterpillar',
+    'HON': 'Honeywell',
+    'MMM': '3M',
+    'BA': 'Boeing',
+    'LMT': 'Lockheed Martin'
+}
+
+# === INIT NEWS API ===
+newsapi = NewsApiClient(api_key=API_KEY)
+
+# === Define Functions ===
+def fetch_news():
+    query = " OR ".join(keywords)
+    print(f"🔍 Searching NewsAPI for: {query}")
+    news = newsapi.get_everything(q=query, language='en', sort_by='publishedAt', page_size=50)
+    print(f"📰 Found {len(news['articles'])} articles.")
+    return news['articles']
+
+def extract_entities(text):
+    doc = nlp(text)
+    return [ent.text for ent in doc.ents if ent.label_ in ['ORG', 'PERSON']]
+
+def match_stock(entities):
+    matched = []
+    for symbol, company in stock_watchlist.items():
+        for entity in entities:
+            if company.lower() in entity.lower() or entity.lower() in company.lower():
+                matched.append((symbol, company))
+    return matched
+
+def analyze_sentiment(text):
+    blob = TextBlob(text)
+    polarity = blob.sentiment.polarity
+    if polarity > 0.1:
+        return 'Positive'
+    elif polarity < -0.1:
+        return 'Negative'
+    else:
+        return 'Neutral'
+
+def main():
+    articles = fetch_news()
+    if not articles:
+        print("⚠️ No news articles found.")
+        return
+
+    print("\n📊 Analyzing news articles...\n")
+
+    export_data = []
+
+    for article in articles:
+        title = article.get('title', '')
+        desc = article.get('description') or ''
+        content = f"{title}. {desc}"
+        url = article.get('url', '')
+
+        entities = extract_entities(content)
+        matched_stocks = match_stock(entities)
+        sentiment = analyze_sentiment(content)
+
+        if matched_stocks:
+            for symbol, name in matched_stocks:
+                print(f"🧾 News Title: {title}")
+                print(f"📈 Impacted Stock: {symbol} - {name}")
+                print(f"📊 Sentiment: {sentiment}")
+                print(f"🔗 URL: {url}")
+                print("-" * 80)
+
+                export_data.append({
+                    'Stock Symbol': symbol,
+                    'Company Name': name,
+                    'News Title': title,
+                    'Sentiment': sentiment,
+                    'URL': url
+                })
+        else:
+            print(f"📰 {title}")
+            print(f"📊 Sentiment: {sentiment}")
+            print(f"🔗 URL: {url}")
+            print("-" * 80)
+
+            export_data.append({
+                'Stock Symbol': '',
+                'Company Name': '',
+                'News Title': title,
+                'Sentiment': sentiment,
+                'URL': url
+            })
+
+    # === Export to CSV ===
+    csv_filename = f"D:/Swapneel/NewsToUse/news_sentiment_{market}_{sector}.csv"
+    with open(csv_filename, mode='w', newline='', encoding='utf-8') as file:
+        writer = csv.DictWriter(file, fieldnames=export_data[0].keys())
+        writer.writeheader()
+        writer.writerows(export_data)
+
+    print(f"\n✅ Exported {len(export_data)} results to {csv_filename}")
+
+if __name__ == "__main__":
+    main()
